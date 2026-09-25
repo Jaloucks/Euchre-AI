@@ -4,6 +4,14 @@ Tests for engine/bidding.py
 Assumes:
   from engine.bidding import BidAction, BiddingState, BidResult,
                               legal_bid_actions, run_bidding, resolve_discard
+
+run_bidding signature (Phase 1c):
+  run_bidding(dealer, up_card: Card, hands: dict[int, list[Card]], choose_action_fn)
+The callback receives a BidView (see tests/test_bid_view.py), not the BiddingState.
+
+resolve_discard signature (Phase 1d):
+  resolve_discard(hand, up_card, dealer, caller, went_alone, choose_discard_fn)
+The callback receives a DiscardView (see tests/test_discard_view.py).
   from engine.deck import Card
 Adjust imports below if your module paths differ.
 """
@@ -79,6 +87,14 @@ def test_round2_dealer_not_stuck_if_not_everyones_turn_passed_yet():
 
 # ---------- run_bidding ----------
 
+UP_CARD = Card("Hearts", "10")
+HANDS = {
+    0: [Card("Clubs", "9"), Card("Clubs", "10"), Card("Clubs", "Queen"), Card("Clubs", "King"), Card("Clubs", "Ace")],
+    1: [Card("Spades", "9"), Card("Spades", "10"), Card("Spades", "Queen"), Card("Spades", "King"), Card("Spades", "Ace")],
+    2: [Card("Diamonds", "9"), Card("Diamonds", "10"), Card("Diamonds", "Queen"), Card("Diamonds", "King"), Card("Diamonds", "Ace")],
+    3: [Card("Hearts", "9"), Card("Hearts", "Queen"), Card("Hearts", "King"), Card("Hearts", "Ace"), Card("Clubs", "Jack")],
+}
+
 class ScriptedChooser:
     """
     Test helper: returns a pre-set sequence of actions, one per call,
@@ -89,7 +105,7 @@ class ScriptedChooser:
         self._actions = list(actions)
         self.calls = 0
 
-    def __call__(self, state: BiddingState, legal_actions: list[BidAction]) -> BidAction:
+    def __call__(self, state, legal_actions: list[BidAction]) -> BidAction:
         if self.calls >= len(self._actions):
             raise AssertionError("ScriptedChooser called more times than scripted")
         action = self._actions[self.calls]
@@ -105,7 +121,7 @@ def test_run_bidding_round1_order_up_ends_immediately():
     chooser = ScriptedChooser([
         BidAction(kind="order_up", suit="Hearts", alone=False),
     ])
-    result = run_bidding(dealer=dealer, up_card_suit="Hearts", choose_action_fn=chooser)
+    result = run_bidding(dealer=dealer, up_card=UP_CARD, hands=HANDS, choose_action_fn=chooser)
     assert result.winning_player == (dealer + 1) % 4  # first player left of dealer
     assert result.winning_bid.kind == "order_up"
     assert result.winning_bid.suit == "Hearts"
@@ -120,7 +136,7 @@ def test_run_bidding_all_pass_round1_transitions_to_round2():
         BidAction(kind="pass"),  # player 3 (dealer)
         BidAction(kind="call_suit", suit="Clubs", alone=False),  # player 0, round 2
     ])
-    result = run_bidding(dealer=dealer, up_card_suit="Hearts", choose_action_fn=chooser)
+    result = run_bidding(dealer=dealer, up_card=UP_CARD, hands=HANDS, choose_action_fn=chooser)
     assert result.winning_player == 0  # left of dealer again, round 2
     assert result.winning_bid.kind == "call_suit"
     assert result.winning_bid.suit == "Clubs"
@@ -139,7 +155,7 @@ def test_run_bidding_stuck_dealer_is_forced_to_call():
         BidAction(kind="pass"),  # round 2, player 2
         BidAction(kind="call_suit", suit="Clubs", alone=False),  # round 2, dealer, forced
     ])
-    result = run_bidding(dealer=dealer, up_card_suit="Hearts", choose_action_fn=chooser)
+    result = run_bidding(dealer=dealer, up_card=UP_CARD, hands=HANDS, choose_action_fn=chooser)
     assert result.winning_player == dealer
     assert result.winning_bid.kind == "call_suit"
 
@@ -152,7 +168,8 @@ def test_resolve_discard_normal_case():
     up_card = Card("Hearts", "10")
 
     new_hand, discard = resolve_discard(
-        hand, up_card, choose_discard_fn=lambda h: Card("Clubs", "9")
+        hand, up_card, dealer=3, caller=1, went_alone=False,
+        choose_discard_fn=lambda view: Card("Clubs", "9")
     )
 
     assert len(new_hand) == 5
@@ -167,7 +184,8 @@ def test_resolve_discard_does_not_mutate_original_hand():
     original_len = len(hand)
     up_card = Card("Hearts", "10")
 
-    resolve_discard(hand, up_card, choose_discard_fn=lambda h: h[0])
+    resolve_discard(hand, up_card, dealer=3, caller=1, went_alone=False,
+                    choose_discard_fn=lambda view: view.hand[0])
 
     assert len(hand) == original_len  # caller's list untouched
     assert up_card not in hand
@@ -180,5 +198,6 @@ def test_resolve_discard_raises_on_invalid_discard():
 
     with pytest.raises(ValueError):
         resolve_discard(
-            hand, up_card, choose_discard_fn=lambda h: Card("Spades", "King")
+            hand, up_card, dealer=3, caller=1, went_alone=False,
+            choose_discard_fn=lambda view: Card("Spades", "King")
         )

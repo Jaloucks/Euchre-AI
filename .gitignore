@@ -1,0 +1,45 @@
+# ---- Python bytecode / caches ----
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ---- Test / coverage output ----
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+
+# ---- Virtual environments ----
+my_env/
+venv/
+.venv/
+env/
+.env
+
+# ---- Packaging / build ----
+build/
+dist/
+*.egg-info/
+
+# ---- Notebooks ----
+.ipynb_checkpoints/
+
+# ---- Training artifacts (Phases 3+) ----
+# Model weights, checkpoints and run logs are large and reproducible from code + seed.
+checkpoints/
+runs/
+logs/
+wandb/
+*.pt
+*.pth
+*.ckpt
+*.npz
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

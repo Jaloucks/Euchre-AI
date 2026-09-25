@@ -22,6 +22,28 @@ class BidResult:
     winning_player: int
     winning_bid: BidAction
 
+@dataclass
+class BidView:
+    player_id: int
+    hand: list[Card]
+    up_card: Card
+    dealer: int
+    round: int
+    passes_this_round: int
+
+@dataclass
+class DiscardView:
+    """
+    What the dealer knows when discarding after being ordered up.
+    Built by resolve_discard and passed to choose_discard_fn.
+    """
+    player_id: int          # always the dealer
+    hand: list[Card]        # SIX cards: the dealer's 5 + the up card (give the agent a copy)
+    up_card: Card           # which of the six was just picked up
+    trump: str              # always up_card.suit here
+    caller: int             # who ordered it up
+    went_alone: bool
+
 def legal_bid_actions(state: BiddingState) -> list[BidAction]:
     actions = []
 
@@ -48,17 +70,26 @@ def legal_bid_actions(state: BiddingState) -> list[BidAction]:
 
     return actions
 
-def run_bidding(dealer: int, up_card_suit: str, choose_action_fn) -> BidResult:
+def run_bidding(dealer: int, up_card: Card, hands: dict[int, list[Card]], choose_action_fn) -> BidResult:
     state = BiddingState(
-        up_card_suit=up_card_suit,
+        up_card_suit=up_card.suit,
         dealer=dealer,
         current_player=(dealer + 1) % 4,
         round=1,
     )
 
     while True:
+        view = BidView(
+            player_id=state.current_player,
+            hand=list(hands[state.current_player]),   # copy: agent can't touch engine state
+            up_card=up_card,
+            dealer=state.dealer,
+            round=state.round,
+            passes_this_round=state.passes_this_round,
+        )
+
         legal_actions = legal_bid_actions(state)
-        action = choose_action_fn(state, legal_actions)
+        action = choose_action_fn(view, legal_actions)
 
         if action.kind == "pass":
             state.passes_this_round += 1
@@ -81,9 +112,25 @@ def run_bidding(dealer: int, up_card_suit: str, choose_action_fn) -> BidResult:
         if action.kind == "call_suit":
             return BidResult(winning_player=state.current_player, winning_bid=action)
 
-def resolve_discard(hand: list[Card], up_card: Card, choose_discard_fn) -> tuple[list[Card], Card]:
+def resolve_discard(
+    hand: list[Card],
+    up_card: Card,
+    dealer: int,
+    caller: int,
+    went_alone: bool,
+    choose_discard_fn,
+) -> tuple[list[Card], Card]:
+    """Dealer picks up the up card, then discards one of the six. Does not mutate `hand`."""
     new_hand = hand + [up_card]
-    discard = choose_discard_fn(new_hand)
+    view = DiscardView(
+        player_id=dealer,
+        hand=list(new_hand),        # copy: agent can't touch engine state
+        up_card=up_card,
+        trump=up_card.suit,
+        caller=caller,
+        went_alone=went_alone,
+    )
+    discard = choose_discard_fn(view)
     if discard not in new_hand:
         raise ValueError(f"choose_discard_fn returned a card not in hand: {discard}")
     new_hand.remove(discard)
