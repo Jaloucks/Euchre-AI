@@ -107,9 +107,11 @@ def test_no_duplicate_cards_played_within_a_hand():
 
 
 def test_discard_only_happens_on_order_up():
+    """...except when the dealer's partner went alone: the dealer sits out, no pickup."""
     for seed in range(N_HANDS):
         result = play_one(seed)
-        if result.bid_result.winning_bid.kind == "order_up":
+        dealer_sits_out = result.went_alone and result.caller == (result.dealer + 2) % 4
+        if result.bid_result.winning_bid.kind == "order_up" and not dealer_sits_out:
             assert result.discarded is not None, f"seed={seed}"
         else:
             assert result.discarded is None, f"seed={seed}"

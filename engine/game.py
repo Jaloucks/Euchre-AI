@@ -187,7 +187,7 @@ def play_hand(
 
     # 3. Dealer picks up the up-card only if it was ordered up in round 1
     discarded = None
-    if bid_result.winning_bid.kind == "order_up":
+    if bid_result.winning_bid.kind == "order_up" and not ((caller + 2) % 4 == dealer and went_alone):
         hands[dealer], discarded = resolve_discard(
             hands[dealer], up_card, dealer, caller, went_alone, choose_discard_fn
         )

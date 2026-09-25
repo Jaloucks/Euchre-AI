@@ -63,12 +63,12 @@ def test_callback_receives_a_discard_view():
 
 def test_view_fields():
     rec = Recorder()
-    run(rec, dealer=2, caller=0, went_alone=True)
+    run(rec, dealer=2, caller=1, went_alone=True)   # opponent alone: dealer still picks up
     v = rec.views[0]
     assert v.player_id == 2
     assert v.up_card == UP
     assert v.trump == "Hearts"
-    assert v.caller == 0
+    assert v.caller == 1
     assert v.went_alone is True
 
 
@@ -129,7 +129,8 @@ def test_play_hand_discard_views_match_hand_result():
             return bot.choose_discard(view)   # RandomBot must accept a DiscardView
 
         r = play_hand(h % 4, rng, bot.choose_bid, discard_fn, bot.choose_play)
-        if r.bid_result.winning_bid.kind == "order_up":
+        dealer_sits_out = r.went_alone and r.caller == (r.dealer + 2) % 4
+        if r.bid_result.winning_bid.kind == "order_up" and not dealer_sits_out:
             assert len(seen) == 1
             v = seen[0]
             assert v.player_id == r.dealer
